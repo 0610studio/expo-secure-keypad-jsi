@@ -1,0 +1,10 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "podspecPath": "./SecureKeypadJsi.podspec",
+    "modules": ["SecureKeypadJsiModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.securekeypadjsi.SecureKeypadJsiModule"]
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "expo-secure-keypad-jsi-example",
+    "slug": "expo-secure-keypad-jsi-example",
+    "version": "1.0.0",
+    "scheme": "securekeypadjsi-example",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "expo.modules.securekeypadjsi.example"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "expo.modules.securekeypadjsi.example"
+    },
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "plugins": [
+      "expo-router",
+      "expo-status-bar"
+    ]
+  }
+}

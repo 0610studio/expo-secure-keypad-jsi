@@ -1,0 +1,58 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.securekeypadjsi'
+version = '0.1.0'
+
+android {
+  namespace "expo.modules.securekeypadjsi"
+
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+
+    externalNativeBuild {
+      cmake {
+        cppFlags "-std=c++20", "-fvisibility=hidden", "-fvisibility-inlines-hidden"
+        arguments "-DANDROID_STL=c++_shared",
+                  "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
+      }
+    }
+  }
+
+  externalNativeBuild {
+    cmake {
+      path "CMakeLists.txt"
+    }
+  }
+
+  // Consume the prefab OpenSSL AAR.
+  buildFeatures {
+    prefab true
+  }
+
+  // The app module already ships libc++_shared.so; avoid duplicate packaging.
+  packagingOptions {
+    excludes += ["**/libc++_shared.so"]
+  }
+
+  lintOptions {
+    abortOnError false
+  }
+
+}
+
+dependencies {
+  // Static libcrypto prefab (OpenSSL 3.6.2), the same artifact react-native
+  // -quick-crypto uses. Provenance, pinning and the fallback plan are in
+  // docs/BUILD.md.
+  implementation 'io.github.ronickg:openssl-static:3.6.2-2'
+
+  // ReactFontManager (theme.fontFamily) — the registry expo-font writes into.
+  // compileOnly: expo-modules-core pulls react-android in as `implementation`,
+  // so it is present at runtime but not on this module's compile classpath.
+  // Version comes from the host app's React Native gradle plugin.
+  compileOnly 'com.facebook.react:react-android'
+}

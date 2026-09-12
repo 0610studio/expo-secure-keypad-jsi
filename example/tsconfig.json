@@ -1,0 +1,10 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "expo-secure-keypad-jsi": ["../src/index"],
+      "expo-secure-keypad-jsi/*": ["../src/*"]
+    }
+  }
+}
