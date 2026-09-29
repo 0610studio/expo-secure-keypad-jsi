@@ -295,9 +295,8 @@ class SecureKeypadJsiView(context: Context, appContext: AppContext) :
 
   private fun applyAccessibilityHardening() {
     // Unconditional. The keys are canvas glyphs with no child nodes, so a11y
-    // services could never read them anyway; hiding the container too denies
-    // a malicious AccessibilityService even the fact that a keypad is here.
-    // The keypad is not screen-reader usable by design — see README.
+    // services could never read them anyway; this keeps screen readers off the
+    // container too. The keypad is not screen-reader usable by design — see README.
     importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
       importantForAutofill = IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS

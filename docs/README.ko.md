@@ -29,7 +29,7 @@ RSA-OAEP 암호화되어 **암호문만** JS로 전달됩니다.
 
 ## 요구 사항
 
-Expo SDK 57+, React Native 0.86+, New Architecture 전용
+Expo SDK 54+, React Native 0.81+, New Architecture 전용
 
 ## 설치
 
@@ -268,7 +268,7 @@ Dirty pages: 0x102b64000.
 |---|---|---|
 | JS 힙 덤프, Hermes 스냅샷 | O | 입력값이 JS VM에 진입하지 않음 |
 | 브릿지·JSI 트래픽 스니핑 | O | 키 매핑과 입력값이 네이티브에만 존재 |
-| Layout Inspector, 접근성 트리 스크래핑 | O | 글리프 직접 렌더, 텍스트 노드 없음. 컨테이너도 접근성 서비스에서 무조건 숨김 |
+| Layout Inspector, 접근성 트리 스크래핑 | O | 글리프 직접 렌더, 텍스트 노드 없음. 중요하지 않은 뷰까지 요청하는 서비스에는 텍스트 없는 키패드 노드(위치·크기)만 보임 |
 | 유저랜드 메모리 스캔 | 대체로 O | cleanse는 항상, mlock은 성공 시. 입력값 수명 마이크로초. libcrypto 내부 일시 사본은 존재 |
 | 스왑 누출 | 조건부 O (Android) | mlock + MADV_DONTDUMP. `RLIMIT_MEMLOCK`이 작은 기기에서 mlock이 실패하면 조용히 cleanse만 남음. iOS는 RAM 압축이라 해당 없음 |
 | 암호문 재전송 | O (서버 협조 시) | nonce + timestamp를 서버가 검증 |

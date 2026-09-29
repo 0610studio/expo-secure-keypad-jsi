@@ -38,13 +38,13 @@ and what to use instead.
 
 ## Requirements
 
-- Expo SDK 57+, React Native 0.86+, New Architecture only
+- Expo SDK 54+, React Native 0.81+, New Architecture only
 - A development build (`expo run:*`) or an EAS build, because the module ships
   native code. Expo Go's prebuilt binary does not contain it, and an OTA update
   replaces only JS, so it cannot add a native module either. Once the module is
   in a build, later JS-only changes can still ship over OTA
-- iOS 16.4+
-- Android 7.0 (API 24)+ — the Expo SDK 57 default; the module adds no floor of
+- iOS 15.1+
+- Android 7.0 (API 24)+ — the Expo SDK default; the module adds no floor of
   its own. Ships `arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`
 
 ## Installation
@@ -99,8 +99,11 @@ export function PinScreen({ serverPublicKeyPem }: { serverPublicKeyPem: string }
 
 **This keypad does not support screen readers on either platform, and there is
 no option to enable it.** The keys are canvas glyphs with no child views, so no
-key is ever an accessibility node, and the container is hidden from a11y
-services and autofill unconditionally.
+key is ever an accessibility node and no digit or character is ever exposed as
+text. On Android the container is also marked not important for accessibility
+and excluded from autofill, so screen readers skip it; a service that requests
+`FLAG_INCLUDE_NOT_IMPORTANT_VIEWS` still sees the keypad as one text-less node
+(its position and size only).
 
 The reason is that an Android `AccessibilityService` can read the node tree and
 input events of other apps — the standard keylogging route — and an app cannot
@@ -336,7 +339,7 @@ Dirty pages: 0x102b64000.
 |---|---|---|
 | JS heap dump, Hermes snapshot | Yes | The value never enters the JS VM |
 | Bridge / JSI traffic sniffing | Yes | Key mapping and the value exist only in native code |
-| Layout Inspector, accessibility tree scraping | Yes | Glyphs are drawn directly; there are no text nodes, and the container is hidden from a11y services unconditionally |
+| Layout Inspector, accessibility tree scraping | Yes | Glyphs are drawn directly; there are no text nodes. A service that asks for not-important views sees only a text-less keypad node (position and size) |
 | Userland memory scan | Mostly | cleanse always, mlock when it succeeds. The value lives for microseconds. Transient copies inside libcrypto do exist |
 | Swap leakage | Conditional (Android) | mlock + MADV_DONTDUMP. On devices with a small `RLIMIT_MEMLOCK` mlock fails silently and only cleanse remains. iOS compresses RAM instead of swapping |
 | Ciphertext replay | Yes (with server support) | The server verifies nonce + timestamp |
