@@ -82,7 +82,7 @@ final class KeyboardCoreGraphicsView: UIView, ThemableKeypadView {
   private var dummySlots = [Int](repeating: -1, count: 5)
 
   private var keyRects: [(CGRect, Key)] = []
-  private var pressedIndex = -1
+  private lazy var pressed = PressedKeyState(view: self)
   private let gap: CGFloat = 6
 
   override init(frame: CGRect) {
@@ -205,7 +205,7 @@ final class KeyboardCoreGraphicsView: UIView, ThemableKeypadView {
     for (index, entry) in keyRects.enumerated() {
       let (frame, key) = entry
       let path = UIBezierPath(roundedRect: frame, cornerRadius: keyCornerRadius)
-      keyFill(pressedHighlight && index == pressedIndex).setFill()
+      keyFill(pressedHighlight && index == pressed.index).setFill()
       path.fill()
       if let label = labelFor(key) {
         let isChar = key.code >= 0
@@ -231,18 +231,15 @@ final class KeyboardCoreGraphicsView: UIView, ThemableKeypadView {
   override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
     guard let touch = touches.first else { return }
     let p = touch.location(in: self)
-    pressedIndex = keyRects.firstIndex(where: { $0.0.contains(p) }) ?? -1
-    setNeedsDisplay()
+    pressed.press(keyRects.firstIndex(where: { $0.0.contains(p) }) ?? -1)
   }
 
   override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-    pressedIndex = -1
-    setNeedsDisplay()
+    pressed.clear()
   }
 
   override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-    pressedIndex = -1
-    setNeedsDisplay()
+    pressed.release()
     guard let touch = touches.first else { return }
     let p = touch.location(in: self)
     guard let key = keyRects.first(where: { $0.0.contains(p) })?.1 else { return }
@@ -271,10 +268,13 @@ final class KeyboardCoreGraphicsView: UIView, ThemableKeypadView {
     case Code.toggle:
       layer_ = layer_ == .letters ? .symbols : .letters
       shift = .off
+      // A new key set: the lit index would now point at another key.
+      pressed.clear()
       layoutKeys()
       setNeedsDisplay()
     case Code.symbolPage:
       layer_ = layer_ == .symbols ? .symbolsExtra : .symbols
+      pressed.clear()
       layoutKeys()
       setNeedsDisplay()
     default:

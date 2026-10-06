@@ -64,7 +64,7 @@ class KeypadCanvasView(context: Context) : View(context), ThemedKeypadView {
   private val actionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
   private val rect = RectF()
 
-  private var pressedCell = -1
+  private val pressed = PressedKeyState(this)
 
   private var cellW = 0f
   private var cellH = 0f
@@ -114,7 +114,7 @@ class KeypadCanvasView(context: Context) : View(context), ThemedKeypadView {
       rect.set(left, top, left + cellW, top + cellH)
 
       val digit = digitAtCell[cell]
-      val held = pressedHighlight && cell == pressedCell
+      val held = pressedHighlight && cell == pressed.index
       val r = keyCornerRadiusDp * density
       keyPaint.color = keyFill(held)
       // Action cells have no key fill. A held one gets the pressedKeyColor
@@ -158,18 +158,15 @@ class KeypadCanvasView(context: Context) : View(context), ThemedKeypadView {
   override fun onTouchEvent(event: MotionEvent): Boolean {
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
-        pressedCell = cellAt(event.x, event.y)
-        invalidate()
+        pressed.press(cellAt(event.x, event.y))
         return true
       }
       MotionEvent.ACTION_CANCEL -> {
-        pressedCell = -1
-        invalidate()
+        pressed.clear()
         return true
       }
       MotionEvent.ACTION_UP -> {
-        pressedCell = -1
-        invalidate()
+        pressed.release()
         val cell = cellAt(event.x, event.y)
         when {
           cell in 0..11 && digitAtCell[cell] >= 0 -> {

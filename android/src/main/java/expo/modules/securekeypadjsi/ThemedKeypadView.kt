@@ -7,6 +7,8 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.os.SystemClock
+import android.view.View
 import com.facebook.react.common.assets.ReactFontManager
 
 /**
@@ -54,6 +56,49 @@ internal fun pressedDim(color: Int, held: Boolean): Int =
   } else {
     color
   }
+
+/**
+ * Which key is lit, kept lit for at least [MIN_LIT_MS] after the press.
+ *
+ * When DOWN and UP land within one frame — a quick tap, or a touch the system
+ * held back and then released whole — unlighting on UP clears the key before a
+ * frame is drawn. iOS does this at the left and right screen edges (see the
+ * PressedKeyState twin in ios/KeypadCoreGraphicsView.swift); this keeps both
+ * platforms showing the same feedback. [View] guards its own pressed state the
+ * same way with `ViewConfiguration.getPressedStateDuration`.
+ */
+internal class PressedKeyState(private val view: View) {
+  companion object {
+    /** About one ordinary tap, so an edge tap reads like one in the middle. */
+    const val MIN_LIT_MS = 100L
+  }
+
+  var index = -1
+    private set
+  private var litAt = 0L
+  private val unlight = Runnable { clear() }
+
+  fun press(index: Int) {
+    view.removeCallbacks(unlight)
+    this.index = index
+    litAt = SystemClock.uptimeMillis()
+    view.invalidate()
+  }
+
+  /** Finger lifted: unlit now, or once the key has been lit for [MIN_LIT_MS]. */
+  fun release() {
+    view.removeCallbacks(unlight)
+    val remaining = MIN_LIT_MS - (SystemClock.uptimeMillis() - litAt)
+    if (index >= 0 && remaining > 0) view.postDelayed(unlight, remaining) else clear()
+  }
+
+  /** Unlit at once: a cancelled touch, or a key set that changed under it. */
+  fun clear() {
+    view.removeCallbacks(unlight)
+    index = -1
+    view.invalidate()
+  }
+}
 
 /** Key fill: [ThemedKeypadView.pressedKeyColor] while held when set, else the 70% dim. */
 internal fun ThemedKeypadView.keyFill(held: Boolean): Int =

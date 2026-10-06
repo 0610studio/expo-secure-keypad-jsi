@@ -105,7 +105,7 @@ class KeyboardCanvasView(context: Context) : View(context), ThemedKeypadView {
   private val actionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
   private val gap = 6f * density
 
-  private var pressedIndex = -1
+  private val pressed = PressedKeyState(this)
 
   init {
     isClickable = true
@@ -226,7 +226,7 @@ class KeyboardCanvasView(context: Context) : View(context), ThemedKeypadView {
 
     for ((index, entry) in keyRects.withIndex()) {
       val (rect, key) = entry
-      val held = pressedHighlight && index == pressedIndex
+      val held = pressedHighlight && index == pressed.index
       keyPaint.color = keyFill(held)
       canvas.drawRoundRect(rect, r, r, keyPaint)
       val label = labelFor(key)
@@ -257,18 +257,15 @@ class KeyboardCanvasView(context: Context) : View(context), ThemedKeypadView {
   override fun onTouchEvent(event: MotionEvent): Boolean {
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
-        pressedIndex = keyRects.indexOfFirst { it.first.contains(event.x, event.y) }
-        invalidate()
+        pressed.press(keyRects.indexOfFirst { it.first.contains(event.x, event.y) })
         return true
       }
       MotionEvent.ACTION_CANCEL -> {
-        pressedIndex = -1
-        invalidate()
+        pressed.clear()
         return true
       }
       MotionEvent.ACTION_UP -> {
-        pressedIndex = -1
-        invalidate()
+        pressed.release()
         val key = keyRects.firstOrNull { it.first.contains(event.x, event.y) }?.second
         if (key != null) handleKey(key)
         performClick()
@@ -297,11 +294,14 @@ class KeyboardCanvasView(context: Context) : View(context), ThemedKeypadView {
       ACTION_TOGGLE -> {
         layer = if (layer == Layer.LETTERS) Layer.SYMBOLS else Layer.LETTERS
         shift = ShiftState.OFF
+        // A new key set: the lit index would now point at another key.
+        pressed.clear()
         layoutKeys()
         invalidate()
       }
       ACTION_SYMBOL_PAGE -> {
         layer = if (layer == Layer.SYMBOLS) Layer.SYMBOLS_EXTRA else Layer.SYMBOLS
+        pressed.clear()
         layoutKeys()
         invalidate()
       }

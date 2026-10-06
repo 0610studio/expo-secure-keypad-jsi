@@ -38,7 +38,7 @@ final class KeypadCoreGraphicsView: UIView, ThemableKeypadView {
   private let clearCell = 9
   private let backspaceCell = 11
   private var digitAtCell = [Int](repeating: -1, count: 12)
-  private var pressedCell = -1
+  private lazy var pressed = PressedKeyState(view: self)
   private let gap: CGFloat = 12
 
   override init(frame: CGRect) {
@@ -80,7 +80,7 @@ final class KeypadCoreGraphicsView: UIView, ThemableKeypadView {
       let row = CGFloat(cell / 3)
       let frame = CGRect(x: col * (cw + gap), y: row * (ch + gap), width: cw, height: ch)
       let digit = digitAtCell[cell]
-      let held = pressedHighlight && cell == pressedCell
+      let held = pressedHighlight && cell == pressed.index
       let path = UIBezierPath(roundedRect: frame, cornerRadius: keyCornerRadius)
       // Action cells have no key fill. A held one gets the pressedKeyColor fill
       // when the theme sets it; otherwise the glyph itself carries the dim.
@@ -116,18 +116,15 @@ final class KeypadCoreGraphicsView: UIView, ThemableKeypadView {
 
   override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
     guard let touch = touches.first else { return }
-    pressedCell = cellAt(touch.location(in: self))
-    setNeedsDisplay()
+    pressed.press(cellAt(touch.location(in: self)))
   }
 
   override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-    pressedCell = -1
-    setNeedsDisplay()
+    pressed.clear()
   }
 
   override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-    pressedCell = -1
-    setNeedsDisplay()
+    pressed.release()
     guard let touch = touches.first else { return }
     let cell = cellAt(touch.location(in: self))
     guard cell >= 0, cell < 12 else { return }
@@ -167,6 +164,52 @@ protocol ThemableKeypadView: AnyObject {
 /// Unshuffled order, phone-keypad style (1..9 then 0): what `shuffle: 'off'`
 /// shows, and the fallback whenever the native CSPRNG layout is unavailable.
 let identityDigitLayout = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
+
+/// Which key is lit, kept lit for at least `minimumLit` after the press.
+///
+/// Near the left and right screen edges iOS holds a touch back while it decides
+/// whether a system edge gesture is starting, and on a quick tap releases
+/// touchesBegan and touchesEnded together. Unlighting on touchesEnded then
+/// clears the key before a frame is drawn, which is why edge keys (and the edge
+/// half of the wide ⌫) showed no press colour, or only sometimes. A key that is
+/// held longer still lights late, once iOS lets the touch through; only the
+/// host app can opt its edges out of system gestures.
+final class PressedKeyState {
+  /// About one ordinary tap, so an edge tap reads like one in the middle.
+  static let minimumLit: CFTimeInterval = 0.1
+
+  private(set) var index = -1
+  private var litAt: CFTimeInterval = 0
+  private var pendingUnlight: DispatchWorkItem?
+  private weak var view: UIView?
+
+  init(view: UIView) { self.view = view }
+
+  func press(_ index: Int) {
+    pendingUnlight?.cancel()
+    self.index = index
+    litAt = CACurrentMediaTime()
+    view?.setNeedsDisplay()
+  }
+
+  /// Finger lifted: unlit now, or once the key has been lit for `minimumLit`.
+  func release() {
+    let remaining = Self.minimumLit - (CACurrentMediaTime() - litAt)
+    guard index >= 0, remaining > 0 else { clear(); return }
+    pendingUnlight?.cancel()
+    let work = DispatchWorkItem { [weak self] in self?.clear() }
+    pendingUnlight = work
+    DispatchQueue.main.asyncAfter(deadline: .now() + remaining, execute: work)
+  }
+
+  /// Unlit at once: a cancelled touch, or a key set that changed under it.
+  func clear() {
+    pendingUnlight?.cancel()
+    pendingUnlight = nil
+    index = -1
+    view?.setNeedsDisplay()
+  }
+}
 
 extension ThemableKeypadView {
   /// Key fill: `pressedKeyColor` while held when set, else the 70% dim.
