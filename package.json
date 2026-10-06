@@ -1,6 +1,6 @@
 {
   "name": "expo-secure-keypad-jsi",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Secure PIN / password keypad for Expo (New Architecture). Natively rendered shuffled keys, the entered value never enters the JS runtime, mlock'd C++ buffer, OpenSSL RSA-OAEP ciphertext only. Screen-capture blocking and device integrity are the host app's job.",
   "main": "build/index.js",
   "types": "build/index.d.ts",
