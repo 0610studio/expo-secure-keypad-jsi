@@ -97,10 +97,10 @@ int32_t esk_keypad_press(esk_keypad* kp, uint8_t digit) {
   return countOr([&] { return kp->core->pressDigit(digit); });
 }
 
-int32_t esk_keypad_press_key(esk_keypad* kp, uint8_t ascii_char) {
+int32_t esk_keypad_press_key(esk_keypad* kp, uint32_t codepoint) {
   if (kp == nullptr) return 0;
   // KeypadCore ignores out-of-charset characters itself.
-  return countOr([&] { return kp->core->pressKey(ascii_char); });
+  return countOr([&] { return kp->core->pressKey(codepoint); });
 }
 
 int32_t esk_keypad_backspace(esk_keypad* kp) {

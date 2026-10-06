@@ -106,6 +106,9 @@ TEST(FullKeyboard, IgnoresSpaceAndNonPrintable) {
   EXPECT_EQ(core.pressKey('\n'), 0u);
   EXPECT_EQ(core.pressKey(0x7F), 0u);
   EXPECT_EQ(core.pressKey(0x80), 0u);
+  EXPECT_EQ(core.pressKey(0xE9), 0u);     // é: not on the keyboard
+  EXPECT_EQ(core.pressKey(0x1F600), 0u);  // emoji
+  EXPECT_EQ(core.pressKey(0xFFE6), 0u);   // fullwidth ￦: the keyboards emit ₩
   EXPECT_EQ(core.pressKey('a'), 1u);
 }
 
@@ -115,7 +118,71 @@ TEST(FullKeyboard, DigitModeIgnoresLetters) {
   core.arm(kp.publicPem());
   EXPECT_EQ(core.pressKey('a'), 0u);
   EXPECT_EQ(core.pressKey('!'), 0u);
+  EXPECT_EQ(core.pressKey(0x20A9), 0u);  // ₩: full keyboard only
   EXPECT_EQ(core.pressKey('7'), 1u);
+}
+
+TEST(FullKeyboard, ExtraSymbolsRoundtripAsUtf8) {
+  RsaKeyPair kp(2048);
+  auto core = makeFullCore();
+  core.arm(kp.publicPem());
+  EXPECT_EQ(core.pressKey(0x20A9), 1u);  // ₩
+  EXPECT_EQ(core.pressKey(0x2661), 2u);  // ♡
+  EXPECT_EQ(core.pressKey(0x00B0), 3u);  // °
+  EXPECT_EQ(core.pressKey('a'), 4u);
+  ASSERT_EQ(core.digitCount(), 4u);  // characters, not bytes
+
+  auto payload = decryptEnvelope(core.submit(), kp.pkey);
+  ASSERT_EQ(payload.size(), payload::kSize);
+  const uint8_t want[] = {0xE2, 0x82, 0xA9, 0xE2, 0x99, 0xA1, 0xC2, 0xB0, 'a'};
+  EXPECT_EQ(payload[3], sizeof(want));  // secretLength is in bytes
+  for (size_t i = 0; i < sizeof(want); ++i) {
+    EXPECT_EQ(payload[payload::kOffSecret + i], want[i]) << "byte " << i;
+  }
+  EXPECT_EQ(payload[payload::kOffSecret + sizeof(want)], 0);
+}
+
+TEST(FullKeyboard, BackspaceRemovesWholeSymbol) {
+  RsaKeyPair kp(2048);
+  auto core = makeFullCore();
+  core.arm(kp.publicPem());
+  pressString(core, "abc");
+  core.pressKey(0x2606);  // ☆
+  EXPECT_EQ(core.backspace(), 3u);
+  core.pressKey('d');
+
+  auto payload = decryptEnvelope(core.submit(), kp.pkey);
+  ASSERT_EQ(payload.size(), payload::kSize);
+  EXPECT_EQ(payload[3], 4);
+  EXPECT_EQ(std::string(payload.begin() + payload::kOffSecret,
+                        payload.begin() + payload::kOffSecret + 4),
+            "abcd");
+}
+
+TEST(FullKeyboard, MinLengthCountsCharactersNotBytes) {
+  RsaKeyPair kp(2048);
+  auto core = makeFullCore(4, 64);
+  core.arm(kp.publicPem());
+  // Three 3-byte symbols = 9 bytes, but only 3 characters: still too short.
+  for (int i = 0; i < 3; ++i) core.pressKey(0x2661);
+  try {
+    core.submit();
+    FAIL() << "expected throw";
+  } catch (const EskError& e) {
+    EXPECT_EQ(e.code(), ErrorCode::TooShort);
+  }
+}
+
+TEST(FullKeyboard, ByteCapCanStopInputBeforeMaxLength) {
+  RsaKeyPair kp(2048);
+  auto core = makeFullCore(4, 64);
+  core.arm(kp.publicPem());
+  for (int i = 0; i < 30; ++i) core.pressKey(0x2661);
+  EXPECT_EQ(core.digitCount(), 21u);  // 21 x 3 = 63 bytes; the 22nd won't fit
+  EXPECT_EQ(core.pressKey('a'), 22u);
+  auto payload = decryptEnvelope(core.submit(), kp.pkey);
+  ASSERT_EQ(payload.size(), payload::kSize);
+  EXPECT_EQ(payload[3], 64);
 }
 
 TEST(FullKeyboard, ConfiguredMaxLengthEnforced) {
@@ -155,6 +222,7 @@ TEST(FullKeyboard, CApiPressKeyAndKeypadType) {
   EXPECT_EQ(esk_keypad_press_key(kpd, 's'), 3);
   EXPECT_EQ(esk_keypad_press_key(kpd, '5'), 4);
   EXPECT_EQ(esk_keypad_press_key(kpd, ' '), 4);  // ignored
+  EXPECT_EQ(esk_keypad_press_key(kpd, 0x2661), 5);  // ♡, 3 bytes
 
   const char* err = nullptr;
   char* envelope = esk_keypad_submit(kpd, &err);
@@ -168,6 +236,8 @@ TEST(FullKeyboard, CApiPressKeyAndKeypadType) {
   EXPECT_EQ(payload[payload::kOffSecret + 1], '@');
   EXPECT_EQ(payload[payload::kOffSecret + 2], 's');
   EXPECT_EQ(payload[payload::kOffSecret + 3], '5');
+  EXPECT_EQ(payload[3], 7);  // 4 ASCII bytes + 3 for ♡
+  EXPECT_EQ(payload[payload::kOffSecret + 4], 0xE2);
 
   esk_free(envelope);
   esk_keypad_destroy(kpd);

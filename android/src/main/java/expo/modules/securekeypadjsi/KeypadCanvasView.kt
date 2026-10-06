@@ -44,6 +44,10 @@ class KeypadCanvasView(context: Context) : View(context), ThemedKeypadView {
   override var fontFamily: String? = null
 
   override var pressedHighlight: Boolean = true
+  override var pressedKeyColor: Int? = null
+  override var clearKeyLabel: String? = null
+  // No submit key on the digit pad (autoSubmit / ref.submit()); kept for the interface.
+  override var submitKeyLabel: String? = null
 
   var layoutProvider: (() -> ByteArray)? = null
 
@@ -111,17 +115,23 @@ class KeypadCanvasView(context: Context) : View(context), ThemedKeypadView {
 
       val digit = digitAtCell[cell]
       val held = pressedHighlight && cell == pressedCell
-      keyPaint.color = pressedDim(keyColor, held)
-      // Action cells have no key fill, so the glyph itself carries the dim.
-      actionPaint.color = pressedDim(actionTextColor, held)
+      val r = keyCornerRadiusDp * density
+      keyPaint.color = keyFill(held)
+      // Action cells have no key fill. A held one gets the pressedKeyColor
+      // fill when the theme sets it; otherwise the glyph itself carries the dim.
+      val actionFill = held && digit < 0 && pressedKeyColor != null
+      actionPaint.color = if (actionFill) actionTextColor else pressedDim(actionTextColor, held)
+      if (actionFill && (cell == backspaceCell || cell == clearCell)) {
+        canvas.drawRoundRect(rect, r, r, keyPaint)
+      }
       when {
         digit >= 0 -> {
-          val r = keyCornerRadiusDp * density
           canvas.drawRoundRect(rect, r, r, keyPaint)
           drawCentered(canvas, digit.toString(), rect, textPaint)
         }
         cell == backspaceCell -> drawCentered(canvas, "⌫", rect, actionPaint)
-        cell == clearCell -> drawCentered(canvas, "✕", rect, actionPaint)
+        cell == clearCell ->
+          drawCentered(canvas, clearKeyLabel ?: "✕", rect, actionPaint, fit = clearKeyLabel != null)
       }
     }
   }

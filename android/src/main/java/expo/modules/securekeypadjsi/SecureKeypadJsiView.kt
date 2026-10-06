@@ -123,9 +123,13 @@ class SecureKeypadJsiView(context: Context, appContext: AppContext) :
     (t["cornerRadius"] as? Number)?.let { v.keyCornerRadiusDp = it.toFloat() }
     (t["digitTextSize"] as? Number)?.let { v.digitTextSizeDp = it.toFloat() }
     (t["pressedHighlight"] as? Boolean)?.let { v.pressedHighlight = it }
-    // Absent key vs. explicit null: both mean "system font", so this one is
-    // assigned unconditionally instead of only on a hit.
+    // Absent key vs. explicit null: both mean "back to the default" (system
+    // font, 70% dim, the ✕ / ⏎ glyphs), so these are assigned unconditionally
+    // instead of only on a hit.
     v.fontFamily = (t["fontFamily"] as? String)?.takeIf { it.isNotEmpty() }
+    v.pressedKeyColor = (t["pressedKeyColor"] as? String)?.let { ThemeColor.parse(it) }
+    v.clearKeyLabel = (t["clearKeyLabel"] as? String)?.takeIf { it.isNotEmpty() }
+    v.submitKeyLabel = (t["submitKeyLabel"] as? String)?.takeIf { it.isNotEmpty() }
     v.invalidate()
   }
 
@@ -225,9 +229,9 @@ class SecureKeypadJsiView(context: Context, appContext: AppContext) :
 
   // KeyboardCanvasView.Listener (full keyboard)
 
-  override fun onKeyPressed(asciiChar: Int) {
+  override fun onKeyPressed(codePoint: Int) {
     val h = handle ?: return
-    val count = h.pressKey(asciiChar)
+    val count = h.pressKey(codePoint)
     if (count < 0) return
     reportCount(count)
     if (autoSubmit && count >= effectiveMaxLength()) submit()

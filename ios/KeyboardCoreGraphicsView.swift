@@ -2,8 +2,8 @@
 import UIKit
 
 /// Full QWERTY secure keyboard drawn with CoreGraphics and no UILabels, so key
-/// glyphs never become accessibility text. Touches resolve to a final ASCII
-/// value here (shift and symbol layer included); the on-screen coordinate
+/// glyphs never become accessibility text. Touches resolve to a final code
+/// point here (shift and symbol layer included); the on-screen coordinate
 /// never leaves this class.
 ///
 /// Following commercial secure-keyboard practice, the QWERTY arrangement is
@@ -13,8 +13,8 @@ import UIKit
 final class KeyboardCoreGraphicsView: UIView, ThemableKeypadView {
 
   protocol Listener: AnyObject {
-    /// Final ASCII character — shift/layer already applied.
-    func onKeyPressed(_ asciiChar: Int)
+    /// Final Unicode code point — shift/layer already applied.
+    func onKeyPressed(_ codePoint: Int)
     func onBackspace()
     func onClear()
     func onDone()
@@ -23,7 +23,7 @@ final class KeyboardCoreGraphicsView: UIView, ThemableKeypadView {
   weak var listener: Listener?
   var shuffleMode: KeypadCoreGraphicsView.ShuffleMode = .mount
 
-  /// Shuffled 0..9 from the native core; identity order when shuffle is off.
+  /// Shuffled 0..9 from the native core; 1..9,0 when shuffle is off.
   var digitsProvider: (() -> [Int])?
 
   var keyColor: UIColor = UIColor(white: 0.11, alpha: 1)
@@ -35,6 +35,9 @@ final class KeyboardCoreGraphicsView: UIView, ThemableKeypadView {
 
   /// false hides the press feedback entirely, for apps that cannot block capture.
   var pressedHighlight = true
+  var pressedKeyColor: UIColor?
+  var clearKeyLabel: String?
+  var submitKeyLabel: String?
 
   private enum Code {
     static let shift = -1
@@ -43,9 +46,10 @@ final class KeyboardCoreGraphicsView: UIView, ThemableKeypadView {
     static let done = -4
     static let toggle = -5
     static let dummy = -6
+    static let symbolPage = -7
   }
 
-  private enum Layer { case letters, symbols }
+  private enum Layer { case letters, symbols, symbolsExtra }
   private enum ShiftState { case off, oneShot, lock }
 
   private struct Key {
@@ -56,17 +60,24 @@ final class KeyboardCoreGraphicsView: UIView, ThemableKeypadView {
   private static let rowQwertyTop = "qwertyuiop"
   private static let rowQwertyMid = "asdfghjkl"
   private static let rowQwertyBot = "zxcvbnm"
-  // All 32 printable ASCII specials, three rows + a short fourth row.
+  // Symbol page 1/2: all 32 printable ASCII specials, three rows + a short fourth row.
   private static let rowSym0 = "!@#$%^&*()"
   private static let rowSym1 = "-_=+[]{}\\|"
   private static let rowSym2 = ";:'\",.<>?/"
   private static let rowSym3 = "`~"
+  // Symbol page 2/2: the non-ASCII symbols the stock iOS / Gboard / Samsung
+  // keyboards show. Must match kExtraSymbols in common/include/esk/SecureBuffer.h,
+  // or the core silently drops the key.
+  private static let rowExt0 = "₩€£¥¢¤§¶©®"
+  private static let rowExt1 = "™✓°•×÷√π∆"
+  private static let rowExt2 = "¡¿《》○●□■▪"
+  private static let rowExt3 = "◇☆♤♡♧"
 
   private var layer_ = Layer.letters
   private var shift = ShiftState.off
   private var lastShiftTap: TimeInterval = 0
 
-  private var digitsOrder: [Int] = Array(0...9)
+  private var digitsOrder: [Int] = identityDigitLayout
   // One dummy-slot seed per character row, re-drawn on reshuffle(); -1 = none.
   private var dummySlots = [Int](repeating: -1, count: 5)
 
@@ -85,7 +96,7 @@ final class KeyboardCoreGraphicsView: UIView, ThemableKeypadView {
 
   func reshuffle() {
     let shuffled = shuffleMode != .off
-    digitsOrder = shuffled ? (digitsProvider?() ?? Array(0...9)) : Array(0...9)
+    digitsOrder = shuffled ? (digitsProvider?() ?? identityDigitLayout) : identityDigitLayout
     for i in dummySlots.indices {
       dummySlots[i] = shuffled ? Int.random(in: 0..<Int.max, using: &systemRng) : -1
     }
@@ -117,14 +128,26 @@ final class KeyboardCoreGraphicsView: UIView, ThemableKeypadView {
       bot.append(contentsOf: letters)
       bot.append(Key(code: Code.backspace, weight: 1.5))
       rows.append(bot)
-    } else {
+    } else if layer_ == .symbols {
       var s0 = charKeys(Self.rowSym0); withDummy(&s0, 4); rows.append(s0)
       var s1 = charKeys(Self.rowSym1); withDummy(&s1, 0); rows.append(s1)
       var s2 = charKeys(Self.rowSym2); withDummy(&s2, 1); rows.append(s2)
-      var s3 = Self.rowSym3.unicodeScalars.map { Key(code: Int($0.value), weight: 2) }
-      withDummy(&s3, 3)
-      s3.append(Key(code: Code.backspace, weight: 2))
+      var s3: [Key] = [Key(code: Code.symbolPage, weight: 1.5)]
+      var syms = Self.rowSym3.unicodeScalars.map { Key(code: Int($0.value), weight: 2) }
+      withDummy(&syms, 3)
+      s3.append(contentsOf: syms)
+      s3.append(Key(code: Code.backspace, weight: 1.5))
       rows.append(s3)
+    } else {
+      var e0 = charKeys(Self.rowExt0); withDummy(&e0, 4); rows.append(e0)
+      var e1 = charKeys(Self.rowExt1); withDummy(&e1, 0); rows.append(e1)
+      var e2 = charKeys(Self.rowExt2); withDummy(&e2, 1); rows.append(e2)
+      var e3: [Key] = [Key(code: Code.symbolPage, weight: 1.5)]
+      var syms = charKeys(Self.rowExt3)
+      withDummy(&syms, 3)
+      e3.append(contentsOf: syms)
+      e3.append(Key(code: Code.backspace, weight: 1.5))
+      rows.append(e3)
     }
     rows.append([Key(code: Code.toggle), Key(code: Code.clear), Key(code: Code.done)])
     return rows
@@ -163,13 +186,17 @@ final class KeyboardCoreGraphicsView: UIView, ThemableKeypadView {
     case Code.dummy: return nil
     case Code.shift: return "\u{21E7}"
     case Code.backspace: return "\u{232B}"
-    case Code.clear: return "\u{2715}"
-    case Code.done: return "\u{23CE}"
+    case Code.clear: return clearKeyLabel ?? "\u{2715}"
+    case Code.done: return submitKeyLabel ?? "\u{23CE}"
     case Code.toggle: return layer_ == .letters ? "!#1" : "abc"
+    case Code.symbolPage: return layer_ == .symbols ? "1/2" : "2/2"
     default:
-      let c = Character(UnicodeScalar(key.code)!)
-      if shift != .off, c.isLowercase { return String(c).uppercased() }
-      return String(c)
+      guard let scalar = UnicodeScalar(key.code) else { return nil }
+      // ASCII a-z only, matching handleKey: π is lowercase to Unicode too.
+      if shift != .off, key.code >= 0x61, key.code <= 0x7A {
+        return String(Character(scalar)).uppercased()
+      }
+      return String(Character(scalar))
     }
   }
 
@@ -178,7 +205,7 @@ final class KeyboardCoreGraphicsView: UIView, ThemableKeypadView {
     for (index, entry) in keyRects.enumerated() {
       let (frame, key) = entry
       let path = UIBezierPath(roundedRect: frame, cornerRadius: keyCornerRadius)
-      pressedDim(keyColor, pressedHighlight && index == pressedIndex).setFill()
+      keyFill(pressedHighlight && index == pressedIndex).setFill()
       path.fill()
       if let label = labelFor(key) {
         let isChar = key.code >= 0
@@ -190,8 +217,13 @@ final class KeyboardCoreGraphicsView: UIView, ThemableKeypadView {
           color = isChar ? keyTextColor : actionTextColor
         }
         let size = isChar ? digitTextSize * 0.6 : digitTextSize * 0.5
+        let custom = (key.code == Code.clear && clearKeyLabel != nil) ||
+          (key.code == Code.done && submitKeyLabel != nil)
+        // Every character key, symbols included, uses the theme font. A glyph
+        // that font lacks (Space Mono has no ♡) is drawn by CoreText's font
+        // cascade, per character, instead of tofu.
         drawCentered(label, in: frame, size: size, color: color,
-                     family: isChar ? fontFamily : nil)
+                     family: isChar ? fontFamily : nil, fit: custom)
       }
     }
   }
@@ -239,6 +271,10 @@ final class KeyboardCoreGraphicsView: UIView, ThemableKeypadView {
     case Code.toggle:
       layer_ = layer_ == .letters ? .symbols : .letters
       shift = .off
+      layoutKeys()
+      setNeedsDisplay()
+    case Code.symbolPage:
+      layer_ = layer_ == .symbols ? .symbolsExtra : .symbols
       layoutKeys()
       setNeedsDisplay()
     default:

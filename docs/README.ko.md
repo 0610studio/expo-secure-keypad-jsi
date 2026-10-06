@@ -73,7 +73,7 @@ export function PinScreen({ serverPublicKeyPem }: { serverPublicKeyPem: string }
 | `publicKey` | `string` | 필수 | RSA 2048~8192bit PEM. 약한 키는 거부 |
 | `keypadType` | `'digit' \| 'full'` | `'digit'` | `'full'`은 QWERTY 키보드 |
 | `minLength` / `maxLength` | `number` | `4` / `6` (digit), `4` / `64` (full) | 유효 범위는 digit 4~12, full 4~64. 범위 밖의 **prop 값**은 범위 안으로 조정됩니다(digit에 `maxLength={20}`을 주면 12로 동작). `minLength`가 `maxLength`보다 크면 `maxLength`로 낮춥니다. 입력이 `maxLength`에 도달하면 이후 키 입력은 오류 없이 무시됩니다 |
-| `shuffle` | `'mount' \| 'perKey' \| 'off'` | `'mount'` | 배치 셔플 시점 |
+| `shuffle` | `'mount' \| 'perKey' \| 'off'` | `'mount'` | 배치 셔플 시점. `'off'`는 전화 키패드처럼 1~9, 0 순서 |
 | `autoSubmit` | `boolean` | `true` (digit), `false` (full) | `maxLength` 도달 시 자동 암호화 |
 | `theme` | `KeypadTheme` | [테마](#테마) 참조 | 색상, 모서리 반경, 글자 크기 |
 | `accessory` | `ReactNode` | | 키패드 바로 위에 렌더링할 React 요소. 키패드가 입력 필드를 가리는 경우(바텀시트 등) 마스킹 표시나 확인 버튼을 두는 자리 |
@@ -106,11 +106,19 @@ ref API: `clear()`, `submit()`
 
 ### QWERTY 키보드 (`keypadType: 'full'`)
 
-영문 대소문자, 숫자, 특수문자 32종(``!@#$%^&*()-_=+[]{}\|;:'",.<>?/`~``)을 입력하는
-비밀번호용 키보드입니다. 공백은 받지 않습니다.
+영문 대소문자, 숫자, ASCII 특수문자 32종(``!@#$%^&*()-_=+[]{}\|;:'",.<>?/`~``),
+그리고 iOS·Android(Gboard, 삼성 키보드) 기본 키보드의 기호 레이어에 표시되는 비ASCII
+기호 33종(`₩ € £ ¥ ¢ ¤ § ¶ © ® ™ ✓ ° • × ÷ √ π ∆ ¡ ¿ 《 》 ○ ● □ ■ ▪ ◇ ☆ ♤ ♡ ♧`)을
+입력하는 비밀번호용 키보드입니다. 길게 눌러 나오는 보조 문자는 포함하지 않습니다.
+공백은 받지 않습니다.
 
 - 배치: 숫자 행 / `qwertyuiop` / `asdfghjkl` / `⇧ zxcvbnm ⌫` / `[!#1] [✕] [⏎]`.
-  `!#1`이 기호 레이어로 전환
+  `!#1`이 기호 레이어로 전환하고, 거기서 `1/2` 키가 ASCII 페이지와 비ASCII
+  페이지(`2/2`)를 오감
+- 길이: `minLength` / `maxLength`와 `onDigitCountChanged`는 문자 수 기준입니다.
+  비ASCII 기호는 UTF-8로 2~3바이트이고 secret 필드는 64바이트라, 기호를 많이 쓰면
+  `maxLength` 전에 입력이 멈출 수 있습니다(예: `♡` 21개 = 63바이트). 넘치는 키는
+  `maxLength` 초과 입력처럼 조용히 무시됩니다
 - 셔플: 자판은 표준 QWERTY를 유지하고 숫자 행만 완전 셔플, 문자 행마다 빈 더미 키
   1개를 무작위 위치에 삽입. `'perKey'`는 매 입력 후 재추첨
 - shift: 한 글자 후 해제, 더블탭으로 caps lock. shift 상태와 레이어는 네이티브에만 존재
@@ -127,18 +135,27 @@ ref API: `clear()`, `submit()`
 |---|---|---|---|
 | `keyColor` | `string` | `#1C1C1E` | 키 배경 |
 | `keyTextColor` | `string` | `#FFFFFF` | 숫자·문자 글리프 |
-| `actionTextColor` | `string` | `#8E8E93` | 기능 키(`⌫`, `✕`, `⇧`, `!#1`, `⏎`) |
+| `actionTextColor` | `string` | `#8E8E93` | 기능 키(`⌫`, `✕`, `⇧`, `!#1`, `1/2`, `⏎`). `clearKeyLabel` / `submitKeyLabel` 문자 포함 |
 | `cornerRadius` | `number` | `12` (digit), `8` (full) | 키 모서리 반경 |
 | `digitTextSize` | `number` | `32` | 글리프 기준 크기. 이름과 달리 `keypadType: 'full'`에도 적용됩니다. 키 종류마다 이 값에 배율이 걸립니다 — 숫자 키 1배, 기능 키 0.7배, QWERTY의 문자 0.6배·기능 키 0.5배. 배율은 양 플랫폼이 동일 |
-| `pressedHighlight` | `boolean` | `true` | 누르고 있는 키를 불투명도 70%로 흐리게 표시. `false`면 눌림 표시를 끔 |
-| `fontFamily` | `string` | 시스템 폰트 | 숫자·문자 글리프의 폰트. 플랫폼이 이미 해석할 수 있는 이름이면 됩니다 — `expo-font`(`useFonts` / `loadAsync`)로 등록한 패밀리, 빌드 시 번들한 폰트, 시스템 패밀리. 해석 실패 시 예외 없이 시스템 폰트로 폴백합니다 |
+| `pressedHighlight` | `boolean` | `true` | 누르고 있는 키의 눌림 표시 여부. `false`면 `pressedKeyColor`를 포함해 눌림 표시를 모두 끔 |
+| `pressedKeyColor` | `string` | `keyColor`의 불투명도 70% | 누르고 있는 키의 배경색. digit 패드의 `✕` / `⌫` 칸은 평소 배경이 없지만 누르는 동안 이 색으로 채워짐 |
+| `clearKeyLabel` | `string` | `✕` | 전체 지우기 키에 글리프 대신 표시할 문자. 예: `"취소"` |
+| `submitKeyLabel` | `string` | `⏎` | 제출 키에 글리프 대신 표시할 문자. 예: `"완료"`. `keypadType: 'full'` 전용(digit 패드에는 제출 키가 없음) |
+| `fontFamily` | `string` | 시스템 폰트 | 숫자·문자·기호 글리프의 폰트. 플랫폼이 이미 해석할 수 있는 이름이면 됩니다 — `expo-font`(`useFonts` / `loadAsync`)로 등록한 패밀리, 빌드 시 번들한 폰트, 시스템 패밀리. 해석 실패 시 예외 없이 시스템 폰트로 폴백합니다 |
 
-`fontFamily`는 값에서 나온 글리프(숫자·문자·기호)에만 적용됩니다. 기능 키 글리프
-(`⌫`, `✕`, `⇧`, `⏎`)는 항상 시스템 폰트로 그립니다 — 커스텀 폰트에는 이 글리프가
-없는 경우가 대부분이고, 없으면 라벨 없는 키에 두부(□)가 찍히기 때문입니다.
-`keypadType: 'full'`이면 출력 가능한 ASCII 전체(0x21~0x7E)를 덮는 폰트를 골라야
-합니다. 그렇지 않으면 일부 키가 두부로 보입니다. 동작하는 예제는
-`example/demos/FontDemo.tsx`(expo-font 패밀리 2종)에 있습니다.
+`fontFamily`는 값에서 나온 글리프 전부(숫자·문자·기호 두 페이지)에 적용됩니다.
+폰트에 없는 글자는 플랫폼의 글자 단위 폰트 폴백(시스템 폰트)으로 그려지고 두부(□)로
+나오지 않습니다. 예를 들어 Space Mono를 쓰면 `€`·`π`는 Space Mono로, `♡`·`₩`는
+폴백 폰트로 나옵니다. 기능 키 글리프(`⌫`, `✕`, `⇧`, `⏎`)는 앱이 어떤 폰트를
+고르든 같은 모양이 되도록 항상 시스템 폰트로 그립니다. `keypadType: 'full'`에서
+출력 가능한 ASCII 전체(0x21~0x7E)를 덮는 폰트를 쓰면 문자·숫자 키가 모두 한
+서체로 나옵니다. 동작하는 예제는 `example/demos/FontDemo.tsx`(expo-font 패밀리
+2종)에 있습니다.
+
+`clearKeyLabel` / `submitKeyLabel`은 시스템 폰트와 `actionTextColor`로, 기능 키
+글리프와 같은 크기로 그리고, 키보다 넓으면 키 너비에 맞게 줄입니다. 지정하지 않거나
+`""`이면 글리프가 그대로 나옵니다.
 
 
 ### 크기
@@ -181,8 +198,8 @@ full은 `4/3`이 적용됩니다. Fabric은 스타일로만 크기를 정하므�
 |---|---|---|---|
 | 0 | 2 | magic `"SK"` | 고정값. 이 라이브러리가 만든 평문이 맞는지 확인 |
 | 2 | 1 | version = 2 | 이 96바이트 레이아웃의 버전. 모르는 값이면 거부 |
-| 3 | 1 | secretLength (4~64) | 실제 입력 길이. 뒤의 secret을 자르는 기준 |
-| 4 | 64 | secret (ASCII, 0 패딩) | 입력값. printable ASCII(0x21~0x7E), 남는 자리는 0 |
+| 3 | 1 | secretLength (4~64) | 입력 길이(**바이트 단위**). 뒤의 secret을 자르는 기준 |
+| 4 | 64 | secret (UTF-8, 0 패딩) | 입력값. printable ASCII(0x21~0x7E)는 1바이트, full 키보드의 비ASCII 기호는 2~3바이트. 남는 자리는 0 |
 | 68 | 16 | nonce | 1회용 난수. 봉투 바깥 `nonce`와 일치해야 함 |
 | 84 | 8 | timestamp (unix 초, 빅엔디안) | 암호화 시각. 신선도 검사용 |
 | 92 | 4 | reserved | 항상 0. 다음 버전용 확장 자리 |
@@ -200,10 +217,15 @@ const plain = crypto.privateDecrypt(
   Buffer.from(msg.ct, 'base64')
 );
 if (plain.subarray(0, 2).toString() !== 'SK' || plain[2] !== 2) throw new Error('bad payload');
-const secret = plain.subarray(4, 4 + plain[3]).toString('ascii');
+const secret = plain.subarray(4, 4 + plain[3]).toString('utf8');
 const nonce = plain.subarray(68, 84).toString('base64');
 const timestamp = Number(plain.readBigUInt64BE(84));
 ```
+
+`secret`은 UTF-8로 디코딩합니다. 숫자 PIN과 ASCII만 쓴 비밀번호는 이전 릴리스와
+바이트가 같아 `'ascii'` 디코딩으로도 동작하지만, `₩`이나 `♡`는 깨집니다. 기호는 기본
+키보드가 입력하는 코드 포인트 그대로 보내므로(`₩`은 전각 U+FFE6이 아닌 U+20A9),
+일반 텍스트 필드로 설정한 비밀번호와 바이트 단위로 일치합니다.
 
 서버가 해야 할 검증:
 

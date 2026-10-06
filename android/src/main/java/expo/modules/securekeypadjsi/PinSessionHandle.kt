@@ -22,8 +22,8 @@ class PinSessionHandle(minLength: Int, maxLength: Int, keypadType: Int = TYPE_DI
 
   fun press(digit: Int): Int = if (ptr != 0L) nativePress(ptr, digit) else 0
 
-  /** Final ASCII char (view resolves shift/layer first). Out-of-charset is ignored. */
-  fun pressKey(asciiChar: Int): Int = if (ptr != 0L) nativePressKey(ptr, asciiChar) else 0
+  /** Final code point (view resolves shift/layer first). Out-of-charset is ignored. */
+  fun pressKey(codePoint: Int): Int = if (ptr != 0L) nativePressKey(ptr, codePoint) else 0
   fun backspace(): Int = if (ptr != 0L) nativeBackspace(ptr) else 0
   fun clear() { if (ptr != 0L) nativeClear(ptr) }
 
@@ -45,7 +45,7 @@ class PinSessionHandle(minLength: Int, maxLength: Int, keypadType: Int = TYPE_DI
   private external fun nativeDestroy(ptr: Long)
   private external fun nativeArm(ptr: Long, pem: String): String?
   private external fun nativePress(ptr: Long, digit: Int): Int
-  private external fun nativePressKey(ptr: Long, asciiChar: Int): Int
+  private external fun nativePressKey(ptr: Long, codePoint: Int): Int
   private external fun nativeBackspace(ptr: Long): Int
   private external fun nativeClear(ptr: Long)
   private external fun nativeSubmit(ptr: Long): String

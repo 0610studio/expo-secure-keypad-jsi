@@ -180,13 +180,13 @@ export default function FontDemo() {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Two caveats</Text>
         <Text style={styles.subtle}>
-          1. The action glyphs (⌫ ✕ ⇧ ⏎) stay in the system font on purpose. Neither font here has a
-          glyph for them — Space Mono and Pacifico both stop at U+00FF-ish — and a missing glyph
-          would draw as tofu (□) on an unlabelled key.
+          1. The action glyphs (⌫ ✕ ⇧ ⏎) stay in the system font on purpose, so the action keys
+          look the same whatever font is picked.
         </Text>
         <Text style={styles.subtle}>
-          2. For keypadType &quot;full&quot;, the font must cover printable ASCII (0x21~0x7E) or
-          some keys show tofu. Both fonts above do; a digits-only display face would not.
+          2. Symbols use the font too, but a font rarely covers them all. On keypadType
+          &quot;full&quot;, open !#1 → 1/2: Space Mono draws € and π itself, while ♡ and ₩ come from
+          the platform&apos;s per-character fallback font — never tofu.
         </Text>
       </View>
 

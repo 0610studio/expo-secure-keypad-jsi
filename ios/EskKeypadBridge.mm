@@ -38,7 +38,7 @@ static int64_t NowTrampoline(void *user);
 }
 
 - (int32_t)press:(uint8_t)digit { return _kp ? esk_keypad_press(_kp, digit) : 0; }
-- (int32_t)pressKey:(uint8_t)asciiChar { return _kp ? esk_keypad_press_key(_kp, asciiChar) : 0; }
+- (int32_t)pressKey:(uint32_t)codePoint { return _kp ? esk_keypad_press_key(_kp, codePoint) : 0; }
 - (int32_t)backspace { return _kp ? esk_keypad_backspace(_kp) : 0; }
 - (void)clear { if (_kp) esk_keypad_clear(_kp); }
 
@@ -60,7 +60,8 @@ static int64_t NowTrampoline(void *user);
 }
 
 - (NSArray<NSNumber *> *)shuffledLayout {
-  uint8_t layout[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+  // Unshuffled fallback, same 1..9,0 order as identityDigitLayout in Swift.
+  uint8_t layout[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
   if (_kp) esk_keypad_shuffled_layout(_kp, layout);
   NSMutableArray<NSNumber *> *out = [NSMutableArray arrayWithCapacity:10];
   for (int i = 0; i < 10; i++) [out addObject:@(layout[i])];

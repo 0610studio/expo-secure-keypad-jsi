@@ -13,10 +13,11 @@ export type ShuffleMode = 'mount' | 'perKey' | 'off';
 
 /**
  * 'digit' = 3x4 shuffled PIN pad.
- * 'full' = QWERTY keyboard with shift + symbol layers. The digit
- * row is fully shuffled and each character row gets a blank dummy key at a
- * random slot, so the same character is not at the same coordinate across
- * sessions. Layout and shift state live only in native code.
+ * 'full' = QWERTY keyboard with shift + two symbol pages (ASCII specials, then
+ * the non-ASCII symbols of the stock iOS / Android keyboards such as ₩ and ♡).
+ * The digit row is fully shuffled and each character row gets a blank dummy
+ * key at a random slot, so the same character is not at the same coordinate
+ * across sessions. Layout and shift state live only in native code.
  */
 export type KeypadType = 'digit' | 'full';
 
@@ -47,18 +48,34 @@ export interface KeypadTheme {
    * font bundled at build time, or a system family ("Courier", "monospace").
    * Unresolvable names fall back to the system font instead of throwing.
    *
-   * NOTE: the action glyphs (⌫ ✕ ⇧ ⏎) always render in the system font. Most
-   * custom fonts have no glyph for them, and a missing glyph would draw as
-   * tofu (□) on an unlabelled key. For `keypadType: 'full'`, pick a font that
-   * covers all of printable ASCII (0x21~0x7E) or some keys will show tofu.
+   * Applies to every character key, symbols (₩ ♡ …) included. A character
+   * the font has no glyph for is drawn by the platform's per-character font
+   * fallback (a system font), not as tofu. The action glyphs (⌫ ✕ ⇧ ⏎) always
+   * render in the system font.
    */
   fontFamily?: string;
   /**
-   * Whether a held key dims to 70% opacity (default true). NOTE: any visible
+   * Whether a held key shows a press effect (default true). NOTE: any visible
    * press effect lets a screen recording reconstruct the input — block capture
    * at the app level (FLAG_SECURE / UIScreen.isCaptured) or pass false here.
    */
   pressedHighlight?: boolean;
+  /**
+   * Background of a held key. Unset = `keyColor` at 70% opacity. On the digit
+   * pad the ✕ / ⌫ cells, which have no background, get this fill while held.
+   * Ignored when `pressedHighlight` is false.
+   */
+  pressedKeyColor?: string;
+  /**
+   * Text shown on the clear key instead of ✕, e.g. "취소". Drawn in the system
+   * font with `actionTextColor`, shrunk to fit the key. Unset or "" = ✕.
+   */
+  clearKeyLabel?: string;
+  /**
+   * Text shown on the submit key instead of ⏎, e.g. "완료". `keypadType:
+   * 'full'` only — the digit pad has no submit key. Unset or "" = ⏎.
+   */
+  submitKeyLabel?: string;
 }
 
 export type OnCompleteEvent = { nativeEvent: { envelope: string } };

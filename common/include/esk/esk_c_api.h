@@ -31,16 +31,17 @@ void esk_keypad_destroy(esk_keypad* kp);
 // NULL on success, else a static error-code string — do NOT free it.
 const char* esk_keypad_arm(esk_keypad* kp, const char* pem);
 
-// Key ops. Return the resulting entered-key count, or ESK_COUNT_ERROR (-1) if
-// the core refused the call — in practice only a cross-thread access, which is
-// a caller bug. Callers must not forward a negative count to JS as "0 entered":
-// the buffer was NOT modified and still holds the previous input.
+// Key ops. Return the resulting entered-character count, or ESK_COUNT_ERROR
+// (-1) if the core refused the call — in practice only a cross-thread access,
+// which is a caller bug. Callers must not forward a negative count to JS as
+// "0 entered": the buffer was NOT modified and still holds the previous input.
 // esk_keypad_press takes a digit value 0..9; esk_keypad_press_key takes the
-// final ASCII character (printable, no space — the view resolves shift/layer
-// state first). Out-of-charset input is ignored, not an error.
+// final Unicode code point (printable ASCII without space, or one of the extra
+// symbols in SecureBuffer.h — the view resolves shift/layer state first).
+// Out-of-charset input is ignored, not an error.
 #define ESK_COUNT_ERROR (-1)
 int32_t esk_keypad_press(esk_keypad* kp, uint8_t digit);
-int32_t esk_keypad_press_key(esk_keypad* kp, uint8_t ascii_char);
+int32_t esk_keypad_press_key(esk_keypad* kp, uint32_t codepoint);
 int32_t esk_keypad_backspace(esk_keypad* kp);
 void esk_keypad_clear(esk_keypad* kp);
 

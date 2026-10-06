@@ -68,8 +68,8 @@ Java_expo_modules_securekeypadjsi_PinSessionHandle_nativePress(JNIEnv*, jobject,
 
 JNIEXPORT jint JNICALL
 Java_expo_modules_securekeypadjsi_PinSessionHandle_nativePressKey(
-    JNIEnv*, jobject, jlong ptr, jint asciiChar) {
-  return esk_keypad_press_key(asKeypad(ptr), static_cast<uint8_t>(asciiChar));
+    JNIEnv*, jobject, jlong ptr, jint codePoint) {
+  return esk_keypad_press_key(asKeypad(ptr), static_cast<uint32_t>(codePoint));
 }
 
 JNIEXPORT jint JNICALL
@@ -102,7 +102,8 @@ Java_expo_modules_securekeypadjsi_PinSessionHandle_nativeSubmit(JNIEnv* env,
 JNIEXPORT jbyteArray JNICALL
 Java_expo_modules_securekeypadjsi_PinSessionHandle_nativeShuffledLayout(
     JNIEnv* env, jobject, jlong ptr) {
-  uint8_t layout[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+  // Unshuffled fallback, same 1..9,0 order as identityLayout() in Kotlin.
+  uint8_t layout[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
   esk_keypad_shuffled_layout(asKeypad(ptr), layout);
   jbyteArray arr = env->NewByteArray(10);
   env->SetByteArrayRegion(arr, 0, 10, reinterpret_cast<jbyte*>(layout));

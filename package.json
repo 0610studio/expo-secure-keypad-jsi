@@ -1,6 +1,6 @@
 {
   "name": "expo-secure-keypad-jsi",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Secure PIN / password keypad for Expo (New Architecture). Natively rendered shuffled keys, the entered value never enters the JS runtime, mlock'd C++ buffer, OpenSSL RSA-OAEP ciphertext only. Screen-capture blocking and device integrity are the host app's job.",
   "main": "build/index.js",
   "types": "build/index.d.ts",
@@ -25,7 +25,9 @@
     "lint": "eslint src/",
     "test": "jest",
     "test:cpp": "cmake -S tests/cpp -B build-cpp -DCMAKE_BUILD_TYPE=Debug && cmake --build build-cpp && ctest --test-dir build-cpp --output-on-failure",
-    "prepare": "rm -rf build && tsc"
+    "prepare": "rm -rf build && tsc",
+    "example:android": "cd example && CI=1 npx expo prebuild --platform android --no-install && npx expo run:android",
+    "example:ios": "cd example && CI=1 npx expo prebuild --platform ios --no-install && npx expo run:ios"
   },
   "keywords": [
     "react-native",

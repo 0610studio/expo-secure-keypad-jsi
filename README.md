@@ -89,7 +89,7 @@ export function PinScreen({ serverPublicKeyPem }: { serverPublicKeyPem: string }
 | `publicKey` | `string` | required | RSA 2048–8192 bit PEM. Weaker keys are rejected |
 | `keypadType` | `'digit' \| 'full'` | `'digit'` | `'full'` is the QWERTY keyboard |
 | `minLength` / `maxLength` | `number` | `4` / `6` (digit), `4` / `64` (full) | Valid range is 4–12 (digit) and 4–64 (full). An out-of-range **prop value** is clamped into it (`maxLength={20}` on the digit pad behaves as 12), and a `minLength` above `maxLength` is lowered to it. Once the input reaches `maxLength`, further key presses are ignored without an error |
-| `shuffle` | `'mount' \| 'perKey' \| 'off'` | `'mount'` | When the layout is reshuffled |
+| `shuffle` | `'mount' \| 'perKey' \| 'off'` | `'mount'` | When the layout is reshuffled. `'off'` lays the digits out phone-style, 1–9 then 0 |
 | `autoSubmit` | `boolean` | `true` (digit), `false` (full) | Encrypt automatically once `maxLength` is reached |
 | `theme` | `KeypadTheme` | see [Theme](#theme) | Colours, corner radius and text size |
 | `accessory` | `ReactNode` | | React content rendered directly above the keypad. The place for a masked-length indicator or a confirm button when the keypad covers the field it fills (bottom sheets) |
@@ -131,11 +131,20 @@ Examples: [InlineDemo](example/demos/InlineDemo.tsx),
 
 ### QWERTY keyboard (`keypadType: 'full'`)
 
-A password keyboard for upper- and lowercase letters, digits, and the 32 ASCII
-specials (``!@#$%^&*()-_=+[]{}\|;:'",.<>?/`~``). Space is not accepted.
+A password keyboard for upper- and lowercase letters, digits, the 32 ASCII
+specials (``!@#$%^&*()-_=+[]{}\|;:'",.<>?/`~``), and the 33 non-ASCII symbols
+the stock iOS and Android (Gboard, Samsung Keyboard) keyboards show on their
+symbol layers: `₩ € £ ¥ ¢ ¤ § ¶ © ® ™ ✓ ° • × ÷ √ π ∆ ¡ ¿ 《 》 ○ ● □ ■ ▪ ◇ ☆ ♤ ♡ ♧`.
+Long-press alternates are not included. Space is not accepted.
 
 - Layout: digit row / `qwertyuiop` / `asdfghjkl` / `⇧ zxcvbnm ⌫` / `[!#1] [✕] [⏎]`.
-  `!#1` switches to the symbol layer
+  `!#1` switches to the symbol layer, where the `1/2` key flips between the
+  ASCII page and the non-ASCII page (`2/2`)
+- Length: `minLength` / `maxLength` and `onDigitCountChanged` count characters.
+  The non-ASCII symbols are 2–3 bytes each in UTF-8 and the secret field holds
+  64 bytes, so a symbol-heavy input can stop accepting keys before `maxLength`
+  (21 × `♡` = 63 bytes, for example). The extra key is ignored like any press
+  past `maxLength`
 - Shuffle: the letter rows keep the standard QWERTY order while the digit row is
   fully shuffled, and each letter row gets one blank dummy key at a random slot.
   `'perKey'` redraws after every keystroke
@@ -155,17 +164,27 @@ Android, points on iOS), so the same number looks the same on both.
 |---|---|---|---|
 | `keyColor` | `string` | `#1C1C1E` | Key background |
 | `keyTextColor` | `string` | `#FFFFFF` | Digit and letter glyphs |
-| `actionTextColor` | `string` | `#8E8E93` | Action keys (`⌫`, `✕`, `⇧`, `!#1`, `⏎`) |
+| `actionTextColor` | `string` | `#8E8E93` | Action keys (`⌫`, `✕`, `⇧`, `!#1`, `1/2`, `⏎`), including `clearKeyLabel` / `submitKeyLabel` text |
 | `cornerRadius` | `number` | `12` (digit), `8` (full) | Key corner radius |
 | `digitTextSize` | `number` | `32` | Base glyph size; despite the name it drives `keypadType: 'full'` too. Each kind of key scales off it — digit keys 1×, action keys 0.7×; on the QWERTY keyboard characters 0.6× and action keys 0.5×. The factors are the same on both platforms |
-| `pressedHighlight` | `boolean` | `true` | A held key dims to 70% opacity. `false` disables the press highlight entirely |
-| `fontFamily` | `string` | system font | Font for the digit / character glyphs. Any name the platform already resolves: a family registered by `expo-font` (`useFonts` / `loadAsync`), a font bundled at build time, or a system family. An unresolvable name falls back to the system font instead of throwing |
+| `pressedHighlight` | `boolean` | `true` | Whether a held key shows a press effect. `false` disables it entirely, `pressedKeyColor` included |
+| `pressedKeyColor` | `string` | `keyColor` at 70% opacity | Background of a held key. On the digit pad the `✕` / `⌫` cells, which have no background, get this fill while held |
+| `clearKeyLabel` | `string` | `✕` | Text shown on the clear key instead of the glyph, e.g. `"취소"` / `"Cancel"` |
+| `submitKeyLabel` | `string` | `⏎` | Text shown on the submit key instead of the glyph, e.g. `"완료"` / `"Done"`. `keypadType: 'full'` only — the digit pad has no submit key |
+| `fontFamily` | `string` | system font | Font for the digit / character / symbol glyphs. Any name the platform already resolves: a family registered by `expo-font` (`useFonts` / `loadAsync`), a font bundled at build time, or a system family. An unresolvable name falls back to the system font instead of throwing |
 
-`fontFamily` covers only the glyphs drawn from a value — digits, letters,
-symbols. The action glyphs (`⌫`, `✕`, `⇧`, `⏎`) always render in the system
-font: most custom fonts have no glyph for them, and a missing glyph would draw
-as tofu (□) on an unlabelled key. For `keypadType: 'full'`, pick a font that
-covers all of printable ASCII (0x21~0x7E) or some keys will show tofu.
+`fontFamily` covers every glyph drawn from a value — digits, letters, and both
+symbol pages. A character the font has no glyph for is drawn by the platform's
+per-character font fallback (a system font), not as tofu: with Space Mono, for
+example, `€` and `π` come from Space Mono while `♡` and `₩` come from the
+fallback. The action glyphs (`⌫`, `✕`, `⇧`, `⏎`) always render in the system
+font, so the action keys look the same whatever font the app picks. For
+`keypadType: 'full'`, a font that covers printable ASCII (0x21~0x7E) keeps
+every letter and digit key in one face.
+
+`clearKeyLabel` / `submitKeyLabel` render in the system font with
+`actionTextColor`, at the action-glyph size, and shrink to fit when the text is
+wider than the key. Leaving them unset (or `""`) keeps the glyphs.
 `example/demos/FontDemo.tsx` is a working screen with two `expo-font` families.
 
 There is no `backgroundColor` theme field: the keypad is a regular view, so its
@@ -216,8 +235,8 @@ the same structure.
 |---|---|---|---|
 | 0 | 2 | magic `"SK"` | Fixed. Confirms the plaintext came from this library |
 | 2 | 1 | version = 2 | Version of this 96-byte layout. Reject anything you don't know |
-| 3 | 1 | secretLength (4–64) | Actual input length; where to cut `secret` |
-| 4 | 64 | secret (ASCII, zero-padded) | The input. Printable ASCII (0x21–0x7E), rest is zero |
+| 3 | 1 | secretLength (4–64) | Input length **in bytes**; where to cut `secret` |
+| 4 | 64 | secret (UTF-8, zero-padded) | The input. Printable ASCII (0x21–0x7E) is one byte each; the full keyboard's non-ASCII symbols are 2–3 bytes. Rest is zero |
 | 68 | 16 | nonce | Single-use random. Must match the envelope's `nonce` |
 | 84 | 8 | timestamp (unix seconds, big endian) | When it was encrypted; for the freshness check |
 | 92 | 4 | reserved | Always zero. Room for the next version |
@@ -235,10 +254,16 @@ const plain = crypto.privateDecrypt(
   Buffer.from(msg.ct, 'base64')
 );
 if (plain.subarray(0, 2).toString() !== 'SK' || plain[2] !== 2) throw new Error('bad payload');
-const secret = plain.subarray(4, 4 + plain[3]).toString('ascii');
+const secret = plain.subarray(4, 4 + plain[3]).toString('utf8');
 const nonce = plain.subarray(68, 84).toString('base64');
 const timestamp = Number(plain.readBigUInt64BE(84));
 ```
+
+Decode `secret` as UTF-8. Digit PINs and ASCII-only passwords are
+byte-identical to earlier releases, so an `'ascii'` decoder keeps working for
+them, but it garbles `₩` or `♡`. The symbols are sent exactly as the stock
+keyboards produce them (`₩` is U+20A9, not the fullwidth U+FFE6), so a
+password set through an ordinary text field compares equal byte for byte.
 
 What the server must verify:
 

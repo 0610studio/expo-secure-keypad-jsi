@@ -68,7 +68,7 @@ class SecureKeypadJsiView: ExpoView, KeypadCoreGraphicsView.Listener,
       v.listener = self
       v.shuffleMode = shuffleMode
       v.digitsProvider = { [weak self] in
-        (self?.bridge?.shuffledLayout())?.map { $0.intValue } ?? Array(0...9)
+        (self?.bridge?.shuffledLayout())?.map { $0.intValue } ?? identityDigitLayout
       }
       v.autoresizingMask = [.flexibleWidth, .flexibleHeight]
       applyTheme(to: v)
@@ -79,7 +79,7 @@ class SecureKeypadJsiView: ExpoView, KeypadCoreGraphicsView.Listener,
       v.listener = self
       v.shuffleMode = shuffleMode
       v.layoutProvider = { [weak self] in
-        (self?.bridge?.shuffledLayout())?.map { $0.intValue } ?? Array(0...9)
+        (self?.bridge?.shuffledLayout())?.map { $0.intValue } ?? identityDigitLayout
       }
       v.autoresizingMask = [.flexibleWidth, .flexibleHeight]
       applyTheme(to: v)
@@ -136,6 +136,11 @@ class SecureKeypadJsiView: ExpoView, KeypadCoreGraphicsView.Listener,
     // assigned unconditionally instead of only on a hit.
     v.fontFamily = (t["fontFamily"] as? String).flatMap { $0.isEmpty ? nil : $0 }
     if let b = t["pressedHighlight"] as? Bool { v.pressedHighlight = b }
+    // Same absent-or-null rule as fontFamily: back to the default (70% dim,
+    // the ✕ / ⏎ glyphs).
+    v.pressedKeyColor = (t["pressedKeyColor"] as? String).flatMap { UIColor(hex: $0) }
+    v.clearKeyLabel = (t["clearKeyLabel"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+    v.submitKeyLabel = (t["submitKeyLabel"] as? String).flatMap { $0.isEmpty ? nil : $0 }
   }
 
   // MARK: - Session lifecycle
@@ -180,9 +185,10 @@ class SecureKeypadJsiView: ExpoView, KeypadCoreGraphicsView.Listener,
 
   // MARK: - KeyboardCoreGraphicsView.Listener (full keyboard)
 
-  func onKeyPressed(_ asciiChar: Int) {
-    guard let b = bridge, asciiChar > 0, asciiChar < 0x7F else { return }
-    let count = b.pressKey(UInt8(asciiChar))
+  func onKeyPressed(_ codePoint: Int) {
+    // The range guard only keeps UInt32() from trapping; the core owns the charset.
+    guard let b = bridge, codePoint > 0, codePoint <= 0x10FFFF else { return }
+    let count = b.pressKey(UInt32(codePoint))
     if count < 0 { return }
     reportCount(Int(count))
     if autoSubmit && count >= effectiveMaxLength { submit() }

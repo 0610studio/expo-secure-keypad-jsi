@@ -37,33 +37,35 @@ std::optional<std::string> KeypadCore::arm(const std::string& publicKeyPem) {
 }
 
 size_t KeypadCore::pressDigit(uint8_t digit) {
-  if (digit > 9) return buffer_.length();
-  return pressKey(static_cast<uint8_t>('0' + digit));
+  if (digit > 9) return buffer_.charCount();
+  return pressKey(static_cast<uint32_t>('0' + digit));
 }
 
-size_t KeypadCore::pressKey(uint8_t asciiChar) {
+size_t KeypadCore::pressKey(uint32_t codepoint) {
   if (state_ != KeypadState::Armed) {
-    return buffer_.length();
+    return buffer_.charCount();
   }
   const bool allowed = type_ == KeypadType::Full
-                           ? isAllowedSecretByte(asciiChar)
-                           : (asciiChar >= '0' && asciiChar <= '9');
+                           ? isAllowedSecretCodepoint(codepoint)
+                           : (codepoint >= '0' && codepoint <= '9');
   if (!allowed) {
-    return buffer_.length();
+    return buffer_.charCount();
   }
-  // Enforce the configured maxLength_ (SecureBuffer only enforces the hard
-  // kMaxSecretLength cap). Silently ignore presses past the configured length.
-  if (buffer_.length() >= maxLength_) {
-    return buffer_.length();
+  // Enforce the configured maxLength_ in characters. SecureBuffer separately
+  // refuses a character whose bytes would pass kMaxSecretLength, so with
+  // multi-byte symbols the input can stop short of maxLength_. Both are
+  // silent: the press is ignored, not an error.
+  if (buffer_.charCount() >= maxLength_) {
+    return buffer_.charCount();
   }
-  buffer_.append(asciiChar);
-  return buffer_.length();
+  buffer_.append(codepoint);
+  return buffer_.charCount();
 }
 
 size_t KeypadCore::backspace() {
-  if (state_ != KeypadState::Armed) return buffer_.length();
+  if (state_ != KeypadState::Armed) return buffer_.charCount();
   buffer_.pop();
-  return buffer_.length();
+  return buffer_.charCount();
 }
 
 void KeypadCore::clearPin() { buffer_.clear(); }
@@ -72,7 +74,7 @@ std::string KeypadCore::submit() {
   if (state_ != KeypadState::Armed || !key_) {
     throw EskError(ErrorCode::NotArmed, "keypad is not armed with a key");
   }
-  const size_t len = buffer_.length();
+  const size_t len = buffer_.charCount();
   if (len == 0) {
     throw EskError(ErrorCode::Empty, "no digits entered");
   }
@@ -93,7 +95,7 @@ std::string KeypadCore::submit() {
   return envelope;
 }
 
-size_t KeypadCore::digitCount() const { return buffer_.length(); }
+size_t KeypadCore::digitCount() const { return buffer_.charCount(); }
 
 std::array<uint8_t, 10> KeypadCore::shuffledLayout() const {
   return secure_random::shuffledDigits();

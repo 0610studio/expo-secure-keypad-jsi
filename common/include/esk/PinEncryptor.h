@@ -14,9 +14,13 @@ namespace esk {
 // digit pad simply never fills more than 12 of the 64 secret bytes.
 //
 // v2 (96 bytes):
-//   0 2 magic {'S','K'} | 2 1 version | 3 1 secretLength
-//   4 64 secret ASCII, zero-padded | 68 16 nonce | 84 8 unix seconds BE
+//   0 2 magic {'S','K'} | 2 1 version | 3 1 secretLength (bytes)
+//   4 64 secret UTF-8, zero-padded | 68 16 nonce | 84 8 unix seconds BE
 //   | 92 4 zero
+//
+// The secret was printable ASCII only until the extra symbol page was added;
+// ASCII is a UTF-8 subset and the layout is unchanged, so that widening kept
+// version 2 — an ASCII-only secret is byte-identical to before.
 namespace payload {
 inline constexpr uint8_t kMagic0 = 'S';
 inline constexpr uint8_t kMagic1 = 'K';

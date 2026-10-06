@@ -35,11 +35,12 @@ class KeypadCore {
   // nullopt on success; otherwise the error-code name (e.g. "ERR_WEAK_KEY").
   std::optional<std::string> arm(const std::string& publicKeyPem);
 
-  // Return the resulting entered-key count. pressKey takes the final ASCII
-  // character (the view resolves shift/layer state before calling); characters
-  // outside the type's charset are silently ignored.
+  // Return the resulting entered-character count. pressKey takes the final
+  // Unicode code point (the view resolves shift/layer state before calling);
+  // characters outside the type's charset are silently ignored, and so is a
+  // character whose UTF-8 bytes would overflow the 64-byte secret field.
   size_t pressDigit(uint8_t digit);
-  size_t pressKey(uint8_t asciiChar);
+  size_t pressKey(uint32_t codepoint);
   size_t backspace();
   void clearPin();
 
@@ -47,6 +48,7 @@ class KeypadCore {
   // on Empty / TooShort / NotArmed.
   std::string submit();
 
+  // Characters, not bytes — a multi-byte symbol counts once.
   size_t digitCount() const;
   KeypadState state() const { return state_; }
   KeypadType type() const { return type_; }

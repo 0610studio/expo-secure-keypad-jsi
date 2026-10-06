@@ -65,16 +65,30 @@ void SecureBuffer::assertOwnerThread() const {
   }
 }
 
-bool SecureBuffer::append(uint8_t asciiChar) {
+bool SecureBuffer::append(uint32_t codepoint) {
   assertOwnerThread();
-  if (!isAllowedSecretByte(asciiChar)) {
-    throw EskError(ErrorCode::Internal, "SecureBuffer: byte out of range");
+  if (!isAllowedSecretCodepoint(codepoint)) {
+    throw EskError(ErrorCode::Internal, "SecureBuffer: character out of range");
   }
-  if (length_ >= kMaxSecretLength) {
+  // The charset is BMP-only and surrogate-free, so 1..3 bytes covers it.
+  const size_t n = codepoint < 0x80 ? 1 : (codepoint < 0x800 ? 2 : 3);
+  if (length_ + n > kMaxSecretLength) {
     return false;
   }
-  page_[length_] = asciiChar;
-  ++length_;
+  // Encoded straight into the page: no stack copy of the secret to cleanse.
+  uint8_t* p = page_ + length_;
+  if (n == 1) {
+    p[0] = static_cast<uint8_t>(codepoint);
+  } else if (n == 2) {
+    p[0] = static_cast<uint8_t>(0xC0 | (codepoint >> 6));
+    p[1] = static_cast<uint8_t>(0x80 | (codepoint & 0x3F));
+  } else {
+    p[0] = static_cast<uint8_t>(0xE0 | (codepoint >> 12));
+    p[1] = static_cast<uint8_t>(0x80 | ((codepoint >> 6) & 0x3F));
+    p[2] = static_cast<uint8_t>(0x80 | (codepoint & 0x3F));
+  }
+  length_ += n;
+  ++chars_;
   return true;
 }
 
@@ -83,8 +97,12 @@ bool SecureBuffer::pop() {
   if (length_ == 0) {
     return false;
   }
-  --length_;
-  cleanse(page_ + length_, 1);
+  // Walk back over UTF-8 continuation bytes (10xxxxxx) to the lead byte.
+  size_t start = length_ - 1;
+  while (start > 0 && (page_[start] & 0xC0) == 0x80) --start;
+  cleanse(page_ + start, length_ - start);
+  length_ = start;
+  --chars_;
   return true;
 }
 
@@ -92,11 +110,17 @@ void SecureBuffer::clear() {
   assertOwnerThread();
   cleanse(page_, kMaxSecretLength);
   length_ = 0;
+  chars_ = 0;
 }
 
 size_t SecureBuffer::length() const {
   assertOwnerThread();
   return length_;
+}
+
+size_t SecureBuffer::charCount() const {
+  assertOwnerThread();
+  return chars_;
 }
 
 void SecureBuffer::withPlaintext(

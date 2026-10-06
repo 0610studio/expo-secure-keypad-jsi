@@ -70,6 +70,8 @@ const PALETTES: {
 
 const RADIUS_STEPS = [0, 4, 8, 14, 999];
 const TEXT_SIZE_STEPS = [24, 28, 32, 38];
+// null = the default 70% dim of keyColor.
+const PRESSED_COLORS: (string | null)[] = [null, '#0A84FF', '#FF453A'];
 
 export default function ThemeDemo() {
   const systemMode: Mode = useColorScheme() === 'dark' ? 'dark' : 'light';
@@ -83,6 +85,8 @@ export default function ThemeDemo() {
   const [sizeIndex, setSizeIndex] = useState(2);
   const [opaqueBackground, setOpaqueBackground] = useState(false);
   const [pressedHighlight, setPressedHighlight] = useState(true);
+  const [pressedIndex, setPressedIndex] = useState(0);
+  const [textLabels, setTextLabels] = useState(false);
 
   const [count, setCount] = useState(0);
   const [envelope, setEnvelope] = useState<string | null>(null);
@@ -100,6 +104,8 @@ export default function ThemeDemo() {
     cornerRadius: RADIUS_STEPS[radiusIndex],
     digitTextSize: TEXT_SIZE_STEPS[sizeIndex],
     pressedHighlight,
+    ...(PRESSED_COLORS[pressedIndex] ? { pressedKeyColor: PRESSED_COLORS[pressedIndex]! } : null),
+    ...(textLabels ? { clearKeyLabel: '취소', submitKeyLabel: '완료' } : null),
   };
 
   return (
@@ -187,6 +193,34 @@ export default function ThemeDemo() {
             onPress={() => setSizeIndex(i)}
           />
         ))}
+      </Row>
+
+      <Row label="pressedKeyColor" color={surface.subtle}>
+        {PRESSED_COLORS.map((c, i) => (
+          <Chip
+            key={c ?? 'dim'}
+            label={c ?? 'Dim (default)'}
+            swatch={c ?? undefined}
+            selected={pressedIndex === i}
+            surface={surface}
+            onPress={() => setPressedIndex(i)}
+          />
+        ))}
+      </Row>
+
+      <Row label="clearKeyLabel / submitKeyLabel" color={surface.subtle}>
+        <Chip
+          label="✕ / ⏎ (default)"
+          selected={!textLabels}
+          surface={surface}
+          onPress={() => setTextLabels(false)}
+        />
+        <Chip
+          label="취소 / 완료"
+          selected={textLabels}
+          surface={surface}
+          onPress={() => setTextLabels(true)}
+        />
       </Row>
 
       <View style={[styles.switchRow, { backgroundColor: surface.card }]}>

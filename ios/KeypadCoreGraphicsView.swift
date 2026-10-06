@@ -26,6 +26,10 @@ final class KeypadCoreGraphicsView: UIView, ThemableKeypadView {
 
   /// false hides the press feedback entirely, for apps that cannot block capture.
   var pressedHighlight = true
+  var pressedKeyColor: UIColor?
+  var clearKeyLabel: String?
+  // No submit key on the digit pad (autoSubmit / ref.submit()); kept for the protocol.
+  var submitKeyLabel: String?
 
   var layoutProvider: (() -> [Int])?
 
@@ -49,9 +53,9 @@ final class KeypadCoreGraphicsView: UIView, ThemableKeypadView {
   func reshuffle() {
     let layout: [Int]
     if shuffleMode == .off {
-      layout = Array(0...9)
+      layout = identityDigitLayout
     } else {
-      layout = layoutProvider?() ?? Array(0...9)
+      layout = layoutProvider?() ?? identityDigitLayout
     }
     digitAtCell = [Int](repeating: -1, count: 12)
     for (slot, cell) in digitCells.enumerated() where slot < layout.count {
@@ -77,16 +81,24 @@ final class KeypadCoreGraphicsView: UIView, ThemableKeypadView {
       let frame = CGRect(x: col * (cw + gap), y: row * (ch + gap), width: cw, height: ch)
       let digit = digitAtCell[cell]
       let held = pressedHighlight && cell == pressedCell
+      let path = UIBezierPath(roundedRect: frame, cornerRadius: keyCornerRadius)
+      // Action cells have no key fill. A held one gets the pressedKeyColor fill
+      // when the theme sets it; otherwise the glyph itself carries the dim.
+      let actionFill = held && digit < 0 && pressedKeyColor != nil
+      let actionColor = actionFill ? actionTextColor : pressedDim(actionTextColor, held)
+      if actionFill && (cell == backspaceCell || cell == clearCell) {
+        keyFill(held).setFill()
+        path.fill()
+      }
       if digit >= 0 {
-        let path = UIBezierPath(roundedRect: frame, cornerRadius: keyCornerRadius)
-        pressedDim(keyColor, held).setFill()
+        keyFill(held).setFill()
         path.fill()
         drawCentered("\(digit)", in: frame, size: digitTextSize, color: keyTextColor, family: fontFamily)
       } else if cell == backspaceCell {
-        // Action cells have no key fill, so the glyph itself carries the dim.
-        drawCentered("\u{232B}", in: frame, size: digitTextSize * 0.7, color: pressedDim(actionTextColor, held))
+        drawCentered("\u{232B}", in: frame, size: digitTextSize * 0.7, color: actionColor)
       } else if cell == clearCell {
-        drawCentered("\u{2715}", in: frame, size: digitTextSize * 0.7, color: pressedDim(actionTextColor, held))
+        drawCentered(clearKeyLabel ?? "\u{2715}", in: frame, size: digitTextSize * 0.7,
+                     color: actionColor, fit: clearKeyLabel != nil)
       }
     }
   }
@@ -142,8 +154,26 @@ protocol ThemableKeypadView: AnyObject {
   var fontFamily: String? { get set }
   /// false hides the press feedback entirely, for apps that cannot block capture.
   var pressedHighlight: Bool { get set }
+  /// Fill of a held key; nil keeps the default 70% dim of `keyColor`.
+  var pressedKeyColor: UIColor? { get set }
+  /// Text drawn instead of the ✕ glyph; nil keeps the glyph.
+  var clearKeyLabel: String? { get set }
+  /// Text drawn instead of the ⏎ glyph (full keyboard only); nil keeps the glyph.
+  var submitKeyLabel: String? { get set }
 
   func setNeedsDisplay()
+}
+
+/// Unshuffled order, phone-keypad style (1..9 then 0): what `shuffle: 'off'`
+/// shows, and the fallback whenever the native CSPRNG layout is unavailable.
+let identityDigitLayout = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
+
+extension ThemableKeypadView {
+  /// Key fill: `pressedKeyColor` while held when set, else the 70% dim.
+  func keyFill(_ held: Bool) -> UIColor {
+    guard held else { return keyColor }
+    return pressedKeyColor ?? keyColor.withAlphaComponent(keyColor.cgColor.alpha * 0.7)
+  }
 }
 
 extension UIView {
@@ -155,11 +185,21 @@ extension UIView {
 
   /// Shared by both keypad views: centred text with no UILabel in the tree.
   /// `family` nil (or unresolvable) draws in the system font — action glyphs
-  /// always pass nil, since most custom fonts have no glyph for them.
+  /// always pass nil, since most custom fonts have no glyph for them. `fit`
+  /// shrinks the text to the key's width — for theme labels, whose length is
+  /// the app's.
   func drawCentered(_ text: String, in frame: CGRect, size: CGFloat, color: UIColor,
-                    family: String? = nil) {
+                    family: String? = nil, fit: Bool = false) {
+    var fontSize = size
+    if fit {
+      let probe = NSAttributedString(string: text,
+                                     attributes: [.font: EskFont.resolve(family, size: size)])
+      let maxWidth = frame.width * 0.85
+      let width = probe.size().width
+      if width > maxWidth, width > 0 { fontSize = size * maxWidth / width }
+    }
     let attrs: [NSAttributedString.Key: Any] = [
-      .font: EskFont.resolve(family, size: size),
+      .font: EskFont.resolve(family, size: fontSize),
       .foregroundColor: color,
     ]
     let str = NSAttributedString(string: text, attributes: attrs)

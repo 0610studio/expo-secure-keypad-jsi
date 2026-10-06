@@ -9,8 +9,11 @@ import android.graphics.RectF
 import android.graphics.Typeface
 import com.facebook.react.common.assets.ReactFontManager
 
-/** Identity 0..9 order: the fallback whenever the native CSPRNG layout is unavailable. */
-internal fun identityLayout(): ByteArray = ByteArray(10) { it.toByte() }
+/**
+ * Unshuffled order, phone-keypad style (1..9 then 0): what `shuffle: 'off'`
+ * shows, and the fallback whenever the native CSPRNG layout is unavailable.
+ */
+internal fun identityLayout(): ByteArray = ByteArray(10) { ((it + 1) % 10).toByte() }
 
 /**
  * The theme surface both canvas views expose, so [SecureKeypadJsiView] applies
@@ -29,6 +32,15 @@ internal interface ThemedKeypadView {
   /** false hides the press feedback entirely, for apps that cannot block capture. */
   var pressedHighlight: Boolean
 
+  /** Fill of a held key; null keeps the default 70% dim of [keyColor]. */
+  var pressedKeyColor: Int?
+
+  /** Text drawn instead of the ✕ glyph; null keeps the glyph. */
+  var clearKeyLabel: String?
+
+  /** Text drawn instead of the ⏎ glyph (full keyboard only); null keeps the glyph. */
+  var submitKeyLabel: String?
+
   fun invalidate()
 }
 
@@ -43,11 +55,25 @@ internal fun pressedDim(color: Int, held: Boolean): Int =
     color
   }
 
-/** Shared by both canvas views: baseline-corrected centred text. */
-internal fun drawCentered(canvas: Canvas, text: String, r: RectF, paint: Paint) {
+/** Key fill: [ThemedKeypadView.pressedKeyColor] while held when set, else the 70% dim. */
+internal fun ThemedKeypadView.keyFill(held: Boolean): Int =
+  if (held) pressedKeyColor ?: pressedDim(keyColor, true) else keyColor
+
+/**
+ * Shared by both canvas views: baseline-corrected centred text. [fit] shrinks
+ * the text to the key's width — for theme labels, whose length is the app's.
+ */
+internal fun drawCentered(canvas: Canvas, text: String, r: RectF, paint: Paint, fit: Boolean = false) {
+  val size = paint.textSize
+  if (fit) {
+    val maxWidth = r.width() * 0.85f
+    val width = paint.measureText(text)
+    if (width > maxWidth && width > 0f) paint.textSize = size * maxWidth / width
+  }
   val cx = r.centerX()
   val cy = r.centerY() - (paint.descent() + paint.ascent()) / 2f
   canvas.drawText(text, cx, cy, paint)
+  paint.textSize = size
 }
 
 

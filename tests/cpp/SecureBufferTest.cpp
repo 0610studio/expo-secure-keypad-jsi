@@ -39,17 +39,70 @@ TEST(SecureBuffer, CapsAtMaxSecretLength) {
 TEST(SecureBuffer, ClearResetsLength) {
   SecureBuffer buf;
   buf.append('1');
-  buf.append('2');
+  buf.append(0x2661);
   buf.clear();
   EXPECT_EQ(buf.length(), 0u);
+  EXPECT_EQ(buf.charCount(), 0u);
 }
 
 TEST(SecureBuffer, RejectsOutOfRangeBytes) {
   SecureBuffer buf;
-  EXPECT_THROW(buf.append(9), EskError);      // raw digit, not ASCII
-  EXPECT_THROW(buf.append(' '), EskError);    // space excluded
-  EXPECT_THROW(buf.append(0x7F), EskError);   // DEL
-  EXPECT_THROW(buf.append(0x80), EskError);   // non-ASCII
+  EXPECT_THROW(buf.append(9), EskError);       // raw digit, not ASCII
+  EXPECT_THROW(buf.append(' '), EskError);     // space excluded
+  EXPECT_THROW(buf.append(0x7F), EskError);    // DEL
+  EXPECT_THROW(buf.append(0x80), EskError);    // C1 control
+  EXPECT_THROW(buf.append(0xE9), EskError);    // é: non-ASCII, not listed
+  EXPECT_THROW(buf.append(0xD800), EskError);  // lone surrogate
+  EXPECT_THROW(buf.append(0x1F600), EskError); // emoji, outside the BMP
+}
+
+TEST(SecureBuffer, EncodesExtraSymbolsAsUtf8) {
+  SecureBuffer buf;
+  EXPECT_TRUE(buf.append(0x00A3));  // £, 2 bytes
+  EXPECT_TRUE(buf.append(0x2661));  // ♡, 3 bytes
+  EXPECT_TRUE(buf.append('a'));
+  EXPECT_EQ(buf.charCount(), 3u);
+  EXPECT_EQ(buf.length(), 6u);
+  buf.withPlaintext([](const uint8_t* d, size_t n) {
+    const uint8_t want[] = {0xC2, 0xA3, 0xE2, 0x99, 0xA1, 'a'};
+    ASSERT_EQ(n, sizeof(want));
+    for (size_t i = 0; i < n; ++i) EXPECT_EQ(d[i], want[i]) << "byte " << i;
+  });
+}
+
+TEST(SecureBuffer, AcceptsEveryExtraSymbol) {
+  SecureBuffer buf;
+  for (uint32_t cp : kExtraSymbols) {
+    buf.clear();
+    EXPECT_TRUE(buf.append(cp)) << std::hex << cp;
+    EXPECT_EQ(buf.charCount(), 1u);
+    EXPECT_GE(buf.length(), 2u);
+    EXPECT_LE(buf.length(), 3u);
+  }
+}
+
+TEST(SecureBuffer, PopRemovesWholeCharacterAndCleansesIt) {
+  SecureBuffer buf;
+  buf.append('x');
+  buf.append(0x20A9);  // ₩, 3 bytes
+  ASSERT_TRUE(buf.pop());
+  EXPECT_EQ(buf.charCount(), 1u);
+  EXPECT_EQ(buf.length(), 1u);
+  buf.withPlaintext([](const uint8_t* d, size_t n) {
+    ASSERT_EQ(n, 1u);
+    EXPECT_EQ(d[0], 'x');
+    for (size_t i = 1; i < 4; ++i) EXPECT_EQ(d[i], 0u) << "byte " << i;
+  });
+}
+
+TEST(SecureBuffer, RefusesCharacterThatWouldOverflowByteCap) {
+  SecureBuffer buf;
+  for (int i = 0; i < 21; ++i) ASSERT_TRUE(buf.append(0x2661));  // 63 bytes
+  EXPECT_FALSE(buf.append(0x2661));  // 66 > 64: refused whole, not split
+  EXPECT_EQ(buf.length(), 63u);
+  EXPECT_EQ(buf.charCount(), 21u);
+  EXPECT_TRUE(buf.append('a'));  // one byte still fits
+  EXPECT_EQ(buf.length(), kMaxSecretLength);
 }
 
 TEST(SecureBuffer, AcceptsFullPrintableRange) {

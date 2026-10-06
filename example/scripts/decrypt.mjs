@@ -7,7 +7,7 @@
 //   node example/scripts/decrypt.mjs '<envelope-json>'
 //
 // Inner payload layout, v2, 96 bytes (see common/include/esk/PinEncryptor.h):
-//   magic "SK"(2) | version(1) | secretLength(1) | secret ascii(64,
+//   magic "SK"(2) | version(1) | secretLength(1, bytes) | secret UTF-8(64,
 //   zero-padded) | nonce(16) | timestamp big-endian seconds(8) | reserved(4)
 // Both keypad types emit this layout.
 import { readFileSync } from 'node:fs';
@@ -60,7 +60,8 @@ if (payload.length !== SIZE) {
 }
 
 const secretLength = payload[3];
-const secret = payload.subarray(4, 4 + secretLength).toString('ascii');
+// UTF-8: ASCII is one byte each; the full keyboard's ₩ ♡ … are 2-3 bytes.
+const secret = payload.subarray(4, 4 + secretLength).toString('utf8');
 const nonce = payload.subarray(OFF_NONCE, OFF_NONCE + 16).toString('base64');
 const timestamp = Number(payload.readBigUInt64BE(OFF_TIMESTAMP));
 

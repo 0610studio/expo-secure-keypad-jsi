@@ -17,9 +17,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable NSString *)arm:(NSString *)pem;
 
 - (int32_t)press:(uint8_t)digit;
-/// Final ASCII char (the view resolves shift/layer first); out-of-charset
-/// input is ignored.
-- (int32_t)pressKey:(uint8_t)asciiChar;
+/// Final Unicode code point (the view resolves shift/layer first);
+/// out-of-charset input is ignored.
+- (int32_t)pressKey:(uint32_t)codePoint;
 - (int32_t)backspace;
 - (void)clear;
 
